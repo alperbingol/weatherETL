@@ -1,2 +1,4 @@
 # Example dependencies
 requests
+datetime
+python-dateutil
