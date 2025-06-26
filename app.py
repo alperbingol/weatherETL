@@ -4,13 +4,33 @@ from dateutil import parser
 from zoneinfo import ZoneInfo
 
 
+def get_coordinates(city_name):
+    url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_name}"
+    response = requests.get(url)
+    response.raise_for_status()
+    results = response.json().get("results")
+    
+    if not results:
+        raise Exception(f"City '{city_name}' not found.")
+    
+    city = results[0]
+    return {
+        "latitude": city["latitude"],
+        "longitude": city["longitude"],
+        "timezone": city["timezone"],
+        "name": city["name"]
+    }
 
-print("datetime.now():", datetime.now())
-print("datetime.now(timezone.utc):", datetime.now(timezone.utc))
 
+city = "81373"
 
-LATITUDE = 52.52
-LONGITUDE = 13.41
+location = get_coordinates(city)
+LATITUDE = location["latitude"]
+LONGITUDE = location["longitude"]
+TIMEZONE = location["timezone"]
+
+print(f"For {location["name"]},\n the latitude: {LATITUDE}, \n the longitude: {LONGITUDE},\n the timezone: {TIMEZONE}")
+
 
 def get_weather():
     url = (
@@ -25,14 +45,13 @@ def get_weather():
 
     # Use the timezone returned by the API
     api_timezone = data["timezone"]
-    current_local = datetime.now(ZoneInfo(api_timezone)).replace(minute=0, second=0, microsecond=0)
+    current_local = datetime.now(ZoneInfo(api_timezone))
     print(f"Current time in {api_timezone}: {current_local}")
 
 
     # API already returns local time due to timezone=auto
     #times = [parser.isoparse(t) for t in data["hourly"]["time"]]
     times = [parser.isoparse(t).replace(tzinfo=ZoneInfo(api_timezone)) for t in data["hourly"]["time"]]
-
 
     # Find closest time
     closest_index = min(range(len(times)), key=lambda i: abs(times[i] - current_local))
@@ -51,3 +70,5 @@ if __name__ == "__main__":
     weather = get_weather()
     print("Fetched Weather Data:")
     print(weather)
+
+
