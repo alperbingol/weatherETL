@@ -2,6 +2,8 @@ import requests
 from datetime import datetime, timezone, timedelta
 from dateutil import parser
 from zoneinfo import ZoneInfo
+import psycopg2
+import os
 
 
 def get_coordinates(city_name):
@@ -21,18 +23,13 @@ def get_coordinates(city_name):
         "name": city["name"]
     }
 
+def get_weather(city_name):
 
-city = "81373"
+    location = get_coordinates(city_name)
+    LATITUDE, LONGITUDE, TIMEZONE = location["latitude"], location["longitude"], location["timezone"]
 
-location = get_coordinates(city)
-LATITUDE = location["latitude"]
-LONGITUDE = location["longitude"]
-TIMEZONE = location["timezone"]
+    print(f"For {location["name"]},\n the latitude: {LATITUDE}, \n the longitude: {LONGITUDE},\n the timezone: {TIMEZONE}")
 
-print(f"For {location["name"]},\n the latitude: {LATITUDE}, \n the longitude: {LONGITUDE},\n the timezone: {TIMEZONE}")
-
-
-def get_weather():
     url = (
         f"https://api.open-meteo.com/v1/forecast"
         f"?latitude={LATITUDE}&longitude={LONGITUDE}"
@@ -48,7 +45,6 @@ def get_weather():
     current_local = datetime.now(ZoneInfo(api_timezone))
     print(f"Current time in {api_timezone}: {current_local}")
 
-
     # API already returns local time due to timezone=auto
     #times = [parser.isoparse(t) for t in data["hourly"]["time"]]
     times = [parser.isoparse(t).replace(tzinfo=ZoneInfo(api_timezone)) for t in data["hourly"]["time"]]
@@ -62,13 +58,41 @@ def get_weather():
 
     return {
         "timestamp": times[closest_index].isoformat(),
+        "city": location["name"],
         "temperature": temperatures[closest_index],
         "humidity": humidities[closest_index]
     }
 
+def insert_weather_data(weather):
+    """Insert a weather record into TimescaleDB"""
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        dbname=os.getenv("DB_NAME", "weather"),
+        user=os.getenv("DB_USER", "postgres"),
+        password=os.getenv("DB_PASSWORD", "postgres"),
+    )
+    cur = conn.cursor()
+    insert_sql = """
+        INSERT INTO weather_data (timestamp, city, temperature, humidity)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (timestamp, city) DO NOTHING;
+    """
+    cur.execute(insert_sql, (
+        weather["timestamp"],
+        weather["city"],
+        weather["temperature"],
+        weather["humidity"],
+    ))
+    conn.commit()
+    cur.close()
+    conn.close()
+
 if __name__ == "__main__":
-    weather = get_weather()
-    print("Fetched Weather Data:")
-    print(weather)
+    
+    city_name = "81373"
 
-
+    weather = get_weather(city_name)
+    print(f"Fetched Weather Data: {weather}")
+    insert_weather_data(weather)
+    print("Inserted data into TimescaleDB.")

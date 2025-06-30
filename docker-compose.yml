@@ -9,7 +9,7 @@ services:
     depends_on:
       - timescaledb
     environment:
-      - DB_HOST= timescaledb
+      - DB_HOST=timescaledb
       - DB_PORT=5432
       - DB_NAME=weather
       - DB_USER=postgres
