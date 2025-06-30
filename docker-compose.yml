@@ -5,7 +5,7 @@ services:
     volumes:
       - .:/app
     working_dir: /app
-    command: python app.py
+    command: python main.py
     depends_on:
       - timescaledb
     environment:
@@ -23,3 +23,8 @@ services:
       - POSTGRES_DB=weather
     ports:
       - "5432:5432" #[host_port]:[container_port]
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+      
+volumes:
+  timescaledb-data: 
